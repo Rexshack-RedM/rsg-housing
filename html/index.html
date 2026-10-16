@@ -12,12 +12,12 @@
     <div id="app" class="hidden">
         <div class="panel" id="panel">
             <header class="panel-header">
-                <button class="circle-btn hidden" id="btn-back" title="Back">&#10094;</button>
+                <button class="circle-btn hidden" id="btn-back" data-title="ui_back">&#10094;</button>
                 <div class="titles">
-                    <h1 id="house-name">House</h1>
-                    <div class="subtitle" id="house-sub">Vacant</div>
+                    <h1 id="house-name"></h1>
+                    <div class="subtitle" id="house-sub"></div>
                 </div>
-                <button class="circle-btn" id="btn-close" title="Close">&#10005;</button>
+                <button class="circle-btn" id="btn-close" data-title="ui_close">&#10005;</button>
             </header>
             <div class="divider"><span>&#10022;</span></div>
 
@@ -117,14 +117,14 @@
     <div id="admin" class="hidden">
         <div class="panel admin-panel">
             <header class="panel-header">
-                <button class="circle-btn hidden" id="adm-back" title="Back">&#10094;</button>
+                <button class="circle-btn hidden" id="adm-back" data-title="ui_back">&#10094;</button>
                 <div class="titles">
                     <h1 data-str="adm_title"></h1>
                     <div class="subtitle" id="adm-sub" data-str="adm_subtitle"></div>
                 </div>
                 <div class="header-actions">
-                    <button class="circle-btn" id="adm-refresh" title="Refresh">&#8635;</button>
-                    <button class="circle-btn" id="adm-close" title="Close">&#10005;</button>
+                    <button class="circle-btn" id="adm-refresh" data-title="adm_refresh">&#8635;</button>
+                    <button class="circle-btn" id="adm-close" data-title="ui_close">&#10005;</button>
                 </div>
             </header>
             <div class="divider"><span>&#10022;</span></div>

@@ -106,7 +106,7 @@ local function playKeyAnimation()
     lib.requestAnimDict(dict)
     lib.requestModel(model)
 
-    local prop = CreateObject(model, GetEntityCoords(ped) + vec3(0, 0, 0.2), true, true, true)
+    local prop = CreateObject(model, GetEntityCoords(ped) + vec3(0, 0, 0.2), false, false, false)
     TaskPlayAnim(ped, dict, 'action', 8.0, -8.0, 2500, 31, 0, true, 0, false, 0, false)
     Wait(750)
     AttachEntityToEntity(prop, ped, GetEntityBoneIndexByName(ped, 'SKEL_R_Finger12'), 0.02, 0.0120, -0.00850, 0.024, -160.0, 200.0, true, true, false, true, 1, true)
@@ -141,6 +141,8 @@ CreateThread(function()
             local dist = #(coords - door.doorcoords)
             if dist < 2.0 and (not nearestDist or dist < nearestDist) then
                 nearest, nearestDist = door, dist
+            elseif dist < 15.0 and sleep > 250 then
+                sleep = 250
             end
         end
 
@@ -218,8 +220,9 @@ local UI_STRINGS = {
     'end_tenancy_desc', 'ui_add', 'ui_remove', 'ui_no_guests', 'ui_confirm',
     'ui_cancel', 'confirm_rent_header', 'confirm_rent_content', 'confirm_end_header', 'confirm_end_content',
     'ui_confirm_pay', 'ui_confirm_pay_content', 'ui_rename_title', 'ui_rename_desc', 'ui_rename_content', 'ui_rename_placeholder', 'ui_save', 'ui_search_placeholder', 'ui_search_hint', 'ui_search_none', 'ui_current_guests',
+    'perm_doors', 'perm_storage', 'perm_wardrobe', 'perm_mailbox', 'ui_guest_access', 'ui_no_permission',
     'ui_mailbox_unavailable', 'ui_mailbox_empty', 'ui_mailbox_from', 'ui_mailbox_send_hint', 'ui_delete', 'ui_back', 'ui_new',
-    'ui_confirm_delete_mail', 'ui_confirm_delete_mail_content',
+    'ui_confirm_delete_mail', 'ui_confirm_delete_mail_content', 'ui_close', 'ui_house',
     'ui_storage_title', 'ui_storage_current', 'ui_storage_open', 'ui_storage_warning', 'ui_storage_upgrade', 'ui_storage_included',
     'ui_storage_owned', 'ui_storage_slots', 'ui_storage_weight', 'ui_confirm_upgrade', 'ui_confirm_upgrade_content',
     'storage_tier_small', 'storage_tier_medium', 'storage_tier_large', 'ui_home_title', 'ui_home_desc', 'ui_home_on', 'ui_home_off', 'ui_outfits_empty', 'ui_outfit_default', 'ui_wear', 'ui_outfit_worn', 'ui_outfits_hint', 'ui_confirm_remove', 'ui_confirm_remove_content'
@@ -340,6 +343,8 @@ RegisterNUICallback('action', function(data, cb)
         runAction('addGuest', houseid, string.upper(data.citizenid))
     elseif action == 'removeGuest' and type(data.citizenid) == 'string' then
         runAction('removeGuest', houseid, data.citizenid)
+    elseif action == 'setGuestPerm' and type(data.citizenid) == 'string' and type(data.perm) == 'string' then
+        runAction('setGuestPermission', houseid, data.citizenid, data.perm, data.allowed == true)
     elseif action == 'home' then
         runAction('setHome', houseid, data.on == true)
     elseif action == 'rename' and type(data.name) == 'string' then
@@ -381,7 +386,7 @@ local ADMIN_STRINGS = {
     'adm_evict_purge', 'adm_confirm_evict', 'adm_confirm_evict_content', 'adm_no_results', 'adm_custom_name',
     'adm_not_in_config', 'adm_guest_list', 'adm_no_guests', 'ui_remove', 'ui_confirm', 'ui_cancel',
     'storage_tier_small', 'storage_tier_medium', 'storage_tier_large', 'adm_doors', 'adm_days_left',
-    'adm_overdue_by', 'adm_refresh'
+    'adm_overdue_by', 'adm_refresh', 'ui_back', 'ui_close', 'ui_storage_slots', 'ui_storage_weight'
 }
 
 local function closeAdmin()

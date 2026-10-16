@@ -181,5 +181,16 @@
     "adm_overdue_by": "Overdue %s days",
     "adm_refresh": "Refresh",
     "admin_past_date": "Pick today or a later date (a past date would evict the tenant)",
-    "admin_storage_too_full": "The storage has items in slots that smaller storage doesn't have. Empty it first"
+    "admin_storage_too_full": "The storage has items in slots that smaller storage doesn't have. Empty it first",
+    "perm_doors": "Doors",
+    "perm_storage": "Storage",
+    "perm_wardrobe": "Wardrobe",
+    "perm_mailbox": "Mailbox",
+    "ui_guest_access": "Access",
+    "ui_no_permission": "The tenant hasn't given you access to this",
+    "no_permission": "The tenant hasn't given you access to the storage",
+    "guest_perm_on": "%s access granted",
+    "guest_perm_off": "%s access removed",
+    "ui_close": "Close",
+    "ui_house": "House"
 }

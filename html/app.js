@@ -52,12 +52,13 @@ function applyStrings() {
     document.querySelectorAll('#app [data-str], #modal [data-str]').forEach((el) => {
         el.textContent = S[el.dataset.str] || el.dataset.str;
     });
-    $('guest-input').placeholder = S.ui_search_placeholder || 'Search by name...';
+    document.querySelectorAll('#app [data-title]').forEach((el) => { el.title = S[el.dataset.title] || ''; });
+    $('guest-input').placeholder = S.ui_search_placeholder || '';
 }
 
 /* views */
 function showView(name) {
-    if (name !== view && typeof clearSearch === 'function') clearSearch();
+    if (name !== view) clearSearch();
     view = name;
     ['rent', 'main', 'guests', 'wardrobe', 'mailbox', 'storage'].forEach((v) => $('view-' + v).classList.toggle('hidden', v !== name));
     $('btn-back').classList.toggle('hidden', !['guests', 'wardrobe', 'mailbox', 'storage'].includes(name));
@@ -96,9 +97,15 @@ function render() {
         rows.push({ key: 'home', icon: 'home', title: S.ui_home_title, desc: S.ui_home_desc, toggle: status.home === true });
         rows.push({ key: 'guests', icon: 'guests', title: S.menu_guests_title, desc: S.menu_guests_desc, chev: true, count: (status.guests || []).length });
     }
-    rows.push({ key: 'storage', icon: 'storage', title: S.menu_storage_title, desc: S.menu_storage_desc, chev: true });
-    rows.push({ key: 'outfits', icon: 'outfits', title: S.menu_outfits_title, desc: S.menu_outfits_desc });
-    rows.push({ key: 'mailbox', icon: 'mailbox', title: S.menu_mailbox_title, desc: S.menu_mailbox_desc, chev: true, unread: status.unread });
+    // guests only see what the tenant has allowed
+    const can = (perm) => isTenant || (status.perms && status.perms[perm]);
+    if (can('storage')) rows.push({ key: 'storage', icon: 'storage', title: S.menu_storage_title, desc: S.menu_storage_desc, chev: true });
+    if (can('wardrobe')) rows.push({ key: 'outfits', icon: 'outfits', title: S.menu_outfits_title, desc: S.menu_outfits_desc });
+    if (can('mailbox')) rows.push({ key: 'mailbox', icon: 'mailbox', title: S.menu_mailbox_title, desc: S.menu_mailbox_desc, chev: true, unread: status.unread });
+    if (rows.length === 0) {
+        $('main-rows').innerHTML = `<div class="muted empty">${escapeHtml(S.ui_no_permission)}</div>`;
+        return;
+    }
     if (isTenant) {
         rows.push({ key: 'rename', icon: 'rename', title: S.ui_rename_title, desc: S.ui_rename_desc });
         rows.push({ key: 'leave', icon: 'leave', title: S.end_tenancy_title, desc: S.end_tenancy_desc, danger: true });
@@ -153,14 +160,24 @@ function renderGuests() {
         $('guest-rows').innerHTML = `<div class="muted empty">${escapeHtml(S.ui_no_guests)}</div>`;
         return;
     }
+    const perms = ['doors', 'storage', 'wardrobe', 'mailbox'];
     $('guest-rows').innerHTML = guests.map((g) => `
-        <div class="row static">
-            <div class="badge">${ICONS.person}</div>
-            <div class="row-body">
-                <div class="row-title">${escapeHtml(g.name || g.citizenid)}</div>
-                <div class="row-desc">${escapeHtml(g.citizenid)}</div>
+        <div class="guest-card">
+            <div class="row static">
+                <div class="badge">${ICONS.person}</div>
+                <div class="row-body">
+                    <div class="row-title">${escapeHtml(g.name || g.citizenid)}</div>
+                    <div class="row-desc">${escapeHtml(g.citizenid)}</div>
+                </div>
+                <button class="wood-btn muted small" data-remove="${escapeHtml(g.citizenid)}" data-name="${escapeHtml(g.name || g.citizenid)}">${escapeHtml(S.ui_remove)}</button>
             </div>
-            <button class="wood-btn muted small" data-remove="${escapeHtml(g.citizenid)}" data-name="${escapeHtml(g.name || g.citizenid)}">${escapeHtml(S.ui_remove)}</button>
+            <div class="perm-row">
+                <span class="perm-label">${escapeHtml(S.ui_guest_access)}</span>
+                ${perms.map((p) => {
+                    const on = !!(g.perms && g.perms[p]);
+                    return `<button class="perm-chip${on ? ' on' : ''}" data-perm="${p}" data-cid="${escapeHtml(g.citizenid)}" data-on="${on ? 1 : 0}">${escapeHtml(S['perm_' + p] || p)}</button>`;
+                }).join('')}
+            </div>
         </div>`).join('');
 }
 
@@ -172,7 +189,7 @@ function confirmBox(title, text, onConfirm, input) {
 
     const field = $('modal-input');
     field.classList.toggle('hidden', !input);
-    $('modal-confirm').textContent = input ? (S.ui_save || 'Save') : (S.ui_confirm || 'Confirm');
+    $('modal-confirm').textContent = input ? (S.ui_save || '') : (S.ui_confirm || '');
     $('modal').classList.remove('hidden');
     if (input) {
         field.value = input.value || '';
@@ -190,7 +207,7 @@ function closeModal() {
 function toast(message, type = 'inform', label) {
     const el = document.createElement('div');
     el.className = 'toast ' + type;
-    el.innerHTML = `<div class="label">${escapeHtml(label || (house ? displayName() : 'House'))}</div><div class="msg">${escapeHtml(message)}</div>`;
+    el.innerHTML = `<div class="label">${escapeHtml(label || (house ? displayName() : (S.ui_house || '')))}</div><div class="msg">${escapeHtml(message)}</div>`;
     $('toasts').appendChild(el);
     setTimeout(() => {
         el.classList.add('out');
@@ -353,6 +370,13 @@ $('search-rows').addEventListener('click', (e) => {
 });
 
 $('guest-rows').addEventListener('click', (e) => {
+    const chip = e.target.closest('[data-perm]');
+    if (chip) {
+        const allowed = chip.dataset.on !== '1';
+        chip.classList.toggle('on', allowed);  // instant feedback, the status refresh confirms it
+        chip.dataset.on = allowed ? '1' : '0';
+        return post('action', { action: 'setGuestPerm', citizenid: chip.dataset.cid, perm: chip.dataset.perm, allowed });
+    }
     const btn = e.target.closest('[data-remove]');
     if (!btn) return;
     const cid = btn.dataset.remove;
@@ -782,7 +806,7 @@ function admRenderDetail() {
         const lvl = i + 1;
         return `<button class="wood-btn adm-tier${lvl === h.storageTier ? ' current' : ''}" data-tier="${lvl}">
             ${escapeHtml(AS['storage_tier_' + t.key] || t.key)}
-            <span class="tier-specs">${t.slots} • ${Math.round(t.weight / 1000).toLocaleString('en-US')} kg</span>
+            <span class="tier-specs">${escapeHtml(fmt(admStr('ui_storage_slots'), t.slots) + ' \u2022 ' + fmt(admStr('ui_storage_weight'), Math.round(t.weight / 1000).toLocaleString('en-US')))}</span>
         </button>`;
     }).join('');
 
@@ -836,11 +860,13 @@ async function admAction(action, data) {
 
 function adminOpen(data) {
     AS = data.strings || AS;
+    S = Object.assign({}, AS, S); // the shared confirm modal reads S
     tiers = data.tiers || tiers;
     admMaxRent = data.maxRent || admMaxRent;
     admHouses = data.houses || [];
     admFilter = 'all';
-    document.querySelectorAll('#admin [data-str]').forEach((el) => { el.textContent = admStr(el.dataset.str); });
+    document.querySelectorAll('#admin [data-str], #modal [data-str]').forEach((el) => { el.textContent = admStr(el.dataset.str); });
+    document.querySelectorAll('#admin [data-title]').forEach((el) => { el.title = admStr(el.dataset.title); });
     $('adm-search').placeholder = admStr('adm_search');
     $('adm-search').value = '';
     $('admin').classList.remove('hidden');

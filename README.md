@@ -9,7 +9,7 @@ Monthly house rentals for the RSG Framework (RedM). Players rent a house directl
 - **Reminders and eviction.** A telegram (and on-screen alert if online) goes out a few days before rent is due. If rent isn't paid within the grace period the tenant is evicted, all keys are removed and the house goes back on the market.
 - **Viewings.** Doors of vacant houses stay unlocked so players can look around before renting. Renting locks them; ending a tenancy unlocks them again.
 - **Doors.** Tenants and guests lock/unlock with a hold prompt. The player turns to face the door and plays a key animation.
-- **Guests.** Search players by name and give them a key. Guests can use the doors, storage, wardrobe and mailbox.
+- **Guests with per-guest access.** Search players by name and give them a key, then choose what each guest can use: **Doors**, **Storage**, **Wardrobe** and **Mailbox**. Each is a simple on/off toggle in the guest list and is enforced on the server.
 - **Storage with upgrades.** Small storage is included; Medium and Large are paid upgrades that last for the tenancy. **Storage is permanently deleted on eviction.**
 - **Wardrobe.** Change into any outfit saved with rsg-character.
 - **Mailbox.** Read and delete your rsg-telegram inbox at home (sending stays at the post office).
@@ -39,7 +39,7 @@ Optional (features switch off cleanly if they aren't running):
 2. Start the server. On first start the script creates its tables from `installation/rsg-housing.sql` automatically (you can also import that file yourself).
 3. Adjust `shared/config.lua` (rent rules, storage tiers, blips) and set each house's rent in `/houseadmin` (see **Admin** below).
 
-The script also adds any new columns to an existing `rsg_housing` table on start, so updates don't need manual SQL.
+The script also adds any new columns to existing `rsg_housing` / `rsg_housekeys` tables on start, so updates don't need manual SQL. Guests that existed before the permissions update keep full access.
 
 ## How it works for players
 
@@ -47,7 +47,7 @@ The script also adds any new columns to an existing `rsg_housing` table on start
 |---|---|
 | Anyone (vacant house) | See the monthly rent and terms, rent the house |
 | Tenant | Rent status and Pay Rent, At Home switch, Guests, Storage (open / upgrade), Wardrobe, Mailbox, Rename House, End Tenancy |
-| Guest | Storage (open), Wardrobe, Mailbox |
+| Guest | Only what the tenant allowed: Storage (open), Wardrobe, Mailbox (and the doors) |
 | Anyone else (rented house) | "This house is already rented" |
 
 ## Configuration (`shared/config.lua`)
@@ -64,6 +64,7 @@ The script also adds any new columns to an existing `rsg_housing` table on start
 | `MenuPromptDistance` | `1.5` | Distance the [J] prompt appears at |
 | `HouseNameMin` / `HouseNameMax` | `3` / `30` | Custom house name length |
 | `GuestSearchMin` / `GuestSearchResults` | `2` / `6` | Guest search: letters before searching, results shown |
+| `GuestDefaultPermissions` | all `true` | What a newly added guest can use (`doors`, `storage`, `wardrobe`, `mailbox`); the tenant can change each guest afterwards |
 | `WardrobeResource` | `'rsg-wardrobe'` | Wardrobe resource name |
 | `TelegramResource` / `MailboxMax` | `'rsg-telegram'` / `50` | Telegram resource name, telegrams shown in the mailbox |
 | `HomeAutoAwayDistance` | `75.0` | Tenant is set to Away past this distance (0 = never) |
@@ -86,6 +87,18 @@ Storage weights are in grams like rsg-inventory (1000 = 1 kg). rsg-inventory cap
 ### Governor accounts
 
 With `EnableGovenor = true`, rent and storage upgrades are paid to the rsg-bossmenu job set for the house's region in `GovernorJobs` (`govenor1` – `govenor5` by default). Those jobs must exist in your job setup (for example in rsg-multijob).
+
+## Languages
+
+All text (notifications, prompts, telegrams and the whole NUI) comes from `locales/`. Included: English (`en`), German (`de`), Greek (`el`), Spanish (`es`), French (`fr`), Japanese (`ja`), Dutch (`nl`), Polish (`pl`), Brazilian Portuguese (`pt-br`) and Romanian (`ro`).
+
+The language follows ox_lib's locale setting, for example in your server config:
+
+```
+setr ox:locale de
+```
+
+To add a language, copy `locales/en.json` to `locales/<code>.json` and translate the values. Keep every `%s` in the same order, and keep `**bold**` markers and `~e~` / `~t6~` / `~q~` colour codes as they are.
 
 ## Admin
 
@@ -124,13 +137,13 @@ UPDATE rsg_housing SET rent = 50;
 | Table | Purpose |
 |---|---|
 | `rsg_housing` | One row per house: region, tenant, rent, due date, custom name, storage tier |
-| `rsg_housekeys` | Keys: the tenant (`guest = 0`) and their guests (`guest = 1`) |
+| `rsg_housekeys` | Keys: the tenant (`guest = 0`) and their guests (`guest = 1`), with each guest's `perm_doors`, `perm_storage`, `perm_wardrobe` and `perm_mailbox` |
 
 House storage is an rsg-inventory stash named `house_<houseid>`. The mailbox reads `rsg_telegrams` (rsg-telegram) and the wardrobe reads `playeroutfit` (rsg-character).
 
 ## Security
 
-All money, keys, storage and doors are handled on the server. Prices come from the database/config, never from the client. Every action checks the player's key/tenancy and distance to the house, purchases are atomic (no double-renting or double-spending) and actions are rate limited. Every admin action is re-checked for permission on the server.
+All money, keys, storage and doors are handled on the server. Prices come from the database/config, never from the client. Every action checks the player's key/tenancy, the guest's permission for that feature, and distance to the house, purchases are atomic (no double-renting or double-spending) and actions are rate limited. Every admin action is re-checked for permission on the server.
 
 ## Support
 

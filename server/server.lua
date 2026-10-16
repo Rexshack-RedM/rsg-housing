@@ -70,11 +70,37 @@ local function getTenantHouse(citizenid, houseid)
     return MySQL.single.await(HOUSE_SELECT .. ' WHERE houseid = ? AND citizenid = ? AND rented = 1', { houseid, citizenid })
 end
 
+-- per-guest permissions (tenants always have every permission)
+local GUEST_PERMS = { 'doors', 'storage', 'wardrobe', 'mailbox' }
+local GUEST_PERM_SET = {}
+for _, perm in ipairs(GUEST_PERMS) do GUEST_PERM_SET[perm] = true end
+local PERM_COLUMNS = 'perm_doors, perm_storage, perm_wardrobe, perm_mailbox'
+
+local function permsFromRow(row)
+    local perms = {}
+    for _, perm in ipairs(GUEST_PERMS) do perms[perm] = isTrue(row['perm_' .. perm]) end
+    return perms
+end
+
+-- the player's key to a house (guest flag + permissions), or nil
+local function getKey(citizenid, houseid)
+    return MySQL.single.await('SELECT guest, ' .. PERM_COLUMNS .. ' FROM rsg_housekeys WHERE citizenid = ? AND houseid = ? LIMIT 1', { citizenid, houseid })
+end
+
 -- returns 'tenant', 'guest' or nil
 local function getAccess(citizenid, houseid)
-    local key = MySQL.single.await('SELECT guest FROM rsg_housekeys WHERE citizenid = ? AND houseid = ? LIMIT 1', { citizenid, houseid })
+    local key = getKey(citizenid, houseid)
     if not key then return nil end
     return isTrue(key.guest) and 'guest' or 'tenant'
+end
+
+-- true if the player is the tenant, or a guest the tenant has allowed to use this part of the house
+local function hasPermission(citizenid, houseid, perm)
+    if not GUEST_PERM_SET[perm] then return false end
+    local key = getKey(citizenid, houseid)
+    if not key then return false end
+    if not isTrue(key.guest) then return true end
+    return isTrue(key['perm_' .. perm])
 end
 
 -- what every client may see (no citizen ids) + the houses that belong to one player
@@ -183,8 +209,12 @@ end
 
 -- guest list with character names (two queries, so table collations never have to match)
 local function getGuests(houseid)
-    local guests = MySQL.query.await('SELECT citizenid FROM rsg_housekeys WHERE houseid = ? AND guest = 1', { houseid }) or {}
+    local guests = MySQL.query.await('SELECT citizenid, ' .. PERM_COLUMNS .. ' FROM rsg_housekeys WHERE houseid = ? AND guest = 1', { houseid }) or {}
     if #guests == 0 then return guests end
+    for i = 1, #guests do
+        guests[i].perms = permsFromRow(guests[i])
+        for _, perm in ipairs(GUEST_PERMS) do guests[i]['perm_' .. perm] = nil end
+    end
 
     local cids = {}
     for i = 1, #guests do cids[i] = guests[i].citizenid end
@@ -221,6 +251,9 @@ local function ensureDatabase()
         -- add columns from newer versions to an existing table
         MySQL.query.await('ALTER TABLE rsg_housing ADD COLUMN IF NOT EXISTS `custom_name` varchar(30) DEFAULT NULL')
         MySQL.query.await('ALTER TABLE rsg_housing ADD COLUMN IF NOT EXISTS `storage_tier` tinyint(4) NOT NULL DEFAULT 1')
+        for _, perm in ipairs(GUEST_PERMS) do
+            MySQL.query.await(('ALTER TABLE rsg_housekeys ADD COLUMN IF NOT EXISTS `perm_%s` tinyint(1) NOT NULL DEFAULT 1'):format(perm))
+        end
         return true
     end
 
@@ -273,7 +306,8 @@ lib.callback.register('rsg-housing:server:getHouseStatus', function(source, hous
 
     local status = { rented = isTrue(house.rented), rent = house.rent, grace = Config.GracePeriodDays }
     if status.rented then
-        status.access = getAccess(Player.PlayerData.citizenid, houseid)
+        local key = getKey(Player.PlayerData.citizenid, houseid)
+        status.access = key and (isTrue(key.guest) and 'guest' or 'tenant') or nil
         if status.access == 'tenant' then
             status.due     = house.due_text
             status.overdue = isTrue(house.overdue)
@@ -283,10 +317,13 @@ lib.callback.register('rsg-housing:server:getHouseStatus', function(source, hous
             status.home = RentedHouses[houseid] and RentedHouses[houseid].home == true or false
             status.guests    = getGuests(houseid)
         end
+        if status.access == 'guest' then
+            status.perms = permsFromRow(key)
+        end
         if status.access then
             status.storageTier = (getStorageTier(house.storage_tier))
         end
-        if status.access and telegramsAvailable() then
+        if status.access and telegramsAvailable() and (status.access == 'tenant' or status.perms.mailbox) then
             status.unread = MySQL.scalar.await('SELECT COUNT(*) FROM rsg_telegrams WHERE citizenid = ? AND is_read = 0', { Player.PlayerData.citizenid }) or 0
         end
     end
@@ -552,8 +589,30 @@ lib.callback.register('rsg-housing:server:addGuest', function(src, houseid, targ
         return reply(false, locale('guest_exists', guestName), 'error')
     end
 
-    MySQL.insert.await('INSERT INTO rsg_housekeys (citizenid, houseid, guest) VALUES (?, ?, 1)', { targetCid, house.houseid })
+    local defaults = Config.GuestDefaultPermissions or {}
+    local values = {}
+    for i, perm in ipairs(GUEST_PERMS) do values[i] = defaults[perm] == false and 0 or 1 end
+    MySQL.insert.await('INSERT INTO rsg_housekeys (citizenid, houseid, guest, ' .. PERM_COLUMNS .. ') VALUES (?, ?, 1, ?, ?, ?, ?)', {
+        targetCid, house.houseid, values[1], values[2], values[3], values[4]
+    })
     return reply(true, locale('guest_added', guestName), 'success')
+end)
+
+-- tenant turns one guest permission on or off
+lib.callback.register('rsg-housing:server:setGuestPermission', function(src, houseid, targetCid, perm, allowed)
+    if onCooldown(src, 400, 'perm') then return reply(false) end
+    local Player = RSGCore.Functions.GetPlayer(src)
+    if not Player or type(targetCid) ~= 'string' or not GUEST_PERM_SET[perm] then return reply(false) end
+
+    local house = getTenantHouse(Player.PlayerData.citizenid, houseid)
+    if not house then return reply(false, locale('not_tenant'), 'error') end
+
+    -- column name comes from the fixed GUEST_PERMS list, never from the client string directly
+    local updated = MySQL.update.await(('UPDATE rsg_housekeys SET perm_%s = ? WHERE houseid = ? AND citizenid = ? AND guest = 1'):format(perm), {
+        allowed == true and 1 or 0, house.houseid, targetCid
+    })
+    if updated == 0 then return reply(false) end
+    return reply(true, locale(allowed == true and 'guest_perm_on' or 'guest_perm_off', locale('perm_' .. perm)), allowed == true and 'success' or 'inform')
 end)
 
 -- search characters by name (or exact citizen id) for the add-guest box
@@ -603,9 +662,14 @@ lib.callback.register('rsg-housing:server:removeGuest', function(src, houseid, t
     local house = getTenantHouse(Player.PlayerData.citizenid, houseid)
     if not house then return reply(false, locale('not_tenant'), 'error') end
 
+    local guestName = targetCid
+    local row = MySQL.single.await('SELECT charinfo FROM players WHERE citizenid = ? LIMIT 1', { targetCid })
+    local info = row and (type(row.charinfo) == 'string' and json.decode(row.charinfo) or row.charinfo)
+    if info and info.firstname then guestName = info.firstname .. ' ' .. (info.lastname or '') end
+
     local removed = MySQL.update.await('DELETE FROM rsg_housekeys WHERE houseid = ? AND citizenid = ? AND guest = 1', { house.houseid, targetCid })
     if removed > 0 then
-        return reply(true, locale('guest_removed', targetCid), 'success')
+        return reply(true, locale('guest_removed', guestName), 'success')
     end
     return reply(false)
 end)
@@ -617,7 +681,7 @@ lib.callback.register('rsg-housing:server:outfits', function(src, houseid, actio
     local Player = RSGCore.Functions.GetPlayer(src)
     local house = HousesById[houseid]
     if not Player or not house then return { available = false } end
-    if not getAccess(Player.PlayerData.citizenid, houseid) then return { available = false } end
+    if not hasPermission(Player.PlayerData.citizenid, houseid, 'wardrobe') then return { available = false, denied = true } end
     if not isNear(src, house.menucoords, Config.InteractDistance) then return { available = false } end
 
     local citizenid = Player.PlayerData.citizenid
@@ -651,7 +715,7 @@ local function canUseMailbox(src, houseid)
     local Player = RSGCore.Functions.GetPlayer(src)
     local house = HousesById[houseid]
     if not Player or not house or not telegramsAvailable() then return nil end
-    if not getAccess(Player.PlayerData.citizenid, houseid) then return nil end
+    if not hasPermission(Player.PlayerData.citizenid, houseid, 'mailbox') then return nil end
     if not isNear(src, house.menucoords, Config.InteractDistance) then return nil end
     return Player.PlayerData.citizenid
 end
@@ -662,6 +726,7 @@ lib.callback.register('rsg-housing:server:mailbox', function(src, houseid, actio
 
     id = math.tointeger(tonumber(id))
     if action == 'read' and id then
+        if onCooldown(src, 250, 'mail') then return nil end
         MySQL.update.await('UPDATE rsg_telegrams SET is_read = 1 WHERE id = ? AND citizenid = ?', { id, citizenid })
     elseif action == 'delete' and id then
         if onCooldown(src, 500, 'mail') then return nil end
@@ -688,8 +753,8 @@ RegisterNetEvent('rsg-housing:server:openStorage', function(houseid)
     local house = HousesById[houseid]
     if not house then return end
 
-    if not getAccess(Player.PlayerData.citizenid, houseid) then
-        return notify(src, locale('storage_title'), locale('no_access'), 'error')
+    if not hasPermission(Player.PlayerData.citizenid, houseid, 'storage') then
+        return notify(src, locale('storage_title'), locale('no_permission'), 'error')
     end
     if not isNear(src, house.menucoords, Config.InteractDistance) then
         return notify(src, locale('storage_title'), locale('too_far'), 'error')
@@ -722,7 +787,7 @@ lib.callback.register('rsg-housing:server:toggleDoor', function(source, doorid)
         return false
     end
 
-    if not getAccess(Player.PlayerData.citizenid, door.houseid) then
+    if not hasPermission(Player.PlayerData.citizenid, door.houseid, 'doors') then
         notify(src, door.name, locale('no_access'), 'error')
         return false
     end

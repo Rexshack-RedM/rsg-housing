@@ -18,6 +18,14 @@ Config.HouseNameMax       = 30     -- longest custom house name (max 30, the dat
 Config.GuestSearchMin     = 2      -- characters typed before the guest search runs
 Config.GuestSearchResults = 6      -- max players shown in the guest search
 
+-- what a newly added guest can use (the tenant can change each guest from the guest list)
+Config.GuestDefaultPermissions = {
+    doors    = true,   -- lock / unlock the doors
+    storage  = true,   -- open the house storage
+    wardrobe = true,   -- change outfits at the house
+    mailbox  = true,   -- read their telegrams at the house
+}
+
 ---------------------------------
 -- wardrobe (outfits saved with rsg-character, put on with rsg-wardrobe)
 ---------------------------------
