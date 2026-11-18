@@ -193,4 +193,9 @@ All money, keys, storage and doors are handled on the server. Prices come from t
 
 If you find this useful, you can support development here: https://buymeacoffee.com/rexshack
 
+## rsg-economy integration
+
+Optional. With `rsg-economy` started, rent and storage upgrade payments are also deposited into the treasury of the town nearest to the house (`Config.Economy`). With `ReplaceGovernor = true` the treasury is used instead of the governor boss account. Set `Config.Economy.Enabled = false` to turn it off.
+
+
 Support: https://rexshack.tebex.store

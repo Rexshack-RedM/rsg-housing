@@ -334,4 +334,9 @@ All text comes from `locales/<lang>.json` (en, de, el, es, fr, ja, nl, pl, pt-br
 ## Not included
 Per-house upgrades such as a bath or stable need interior coordinates per MLO. Tenancy transfer between players needs a consent flow for the receiving player.
 
+## rsg-economy integration
+
+`Config.Economy = { Enabled, ReplaceGovernor }`. `payGovernor(region, amount, houseid, reason)` first calls `payTreasury`, which finds the town with `GetRegionAt(house menucoords)` and calls `DepositTreasury(region, amount, reason, 'rsg-housing')`. When that succeeds and `ReplaceGovernor` is true it stops; otherwise the existing governor payout (`Config.EnableGovernor`, `Config.GovernorJobs`) runs as before. Called for new rentals, monthly rent payments and storage upgrades. Refunds do not take money back out of the treasury. Skipped when rsg-economy is not started or the house is outside every town's region radius.
+
+
 Support: https://rexshack.tebex.store

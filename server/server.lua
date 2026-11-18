@@ -144,7 +144,19 @@ local function syncRentedHouses()
     end
 end
 
-local function payGovernor(region, amount)
+-- rsg-economy (optional): returns true when the payment was deposited into a town treasury
+local function payTreasury(houseid, amount, reason)
+    if not Config.Economy.Enabled or amount <= 0 or GetResourceState('rsg-economy') ~= 'started' then return false end
+    local h = HousesById[houseid]
+    local c = h and h.menucoords
+    if not c then return false end
+    local region = exports['rsg-economy']:GetRegionAt(vector3(c.x, c.y, c.z))
+    if not region then return false end
+    return exports['rsg-economy']:DepositTreasury(region, amount, reason, 'rsg-housing') ~= nil
+end
+
+local function payGovernor(region, amount, houseid, reason)
+    if payTreasury(houseid, amount, reason or 'rent') and Config.Economy.ReplaceGovernor then return end
     local job = Config.GovernorJobs[region]
     local enabled = Config.EnableGovernor
     if enabled == nil then enabled = Config.EnableGovenor end
@@ -539,7 +551,7 @@ registerCallback('rsg-housing:server:rentHouse', function(src, houseid)
 
     MySQL.update.await('DELETE FROM rsg_housekeys WHERE houseid = ?', { houseid })
     MySQL.insert.await('INSERT INTO rsg_housekeys (citizenid, houseid, guest) VALUES (?, ?, 0)', { citizenid, houseid })
-    payGovernor(house.region, rent)
+    payGovernor(house.region, rent, houseid, 'rent')
 
     RentedHouses[houseid] = { owner = fullname, citizenid = citizenid }
     syncRentedHouses()
@@ -582,7 +594,7 @@ registerCallback('rsg-housing:server:payRent', function(src, houseid)
         return reply(false)
     end
 
-    payGovernor(house.region, rent)
+    payGovernor(house.region, rent, house.houseid, 'rent')
     TriggerEvent('rsg-housing:server:rentPaid', house.houseid, Player.PlayerData.citizenid, rent)
     local due = MySQL.scalar.await("SELECT DATE_FORMAT(rent_due, '%d/%m/%Y') FROM rsg_housing WHERE houseid = ?", { house.houseid })
     return reply(true, locale('rent_paid', rent, due), 'success')
@@ -669,7 +681,7 @@ registerCallback('rsg-housing:server:upgradeStorage', function(src, houseid, lev
         return reply(false)
     end
 
-    payGovernor(house.region, cost)
+    payGovernor(house.region, cost, house.houseid, 'storage upgrade')
     return reply(true, locale('storage_upgraded', locale('storage_tier_' .. target.key), cost), 'success')
 end)
 

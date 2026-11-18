@@ -2,6 +2,10 @@
 
 All notable changes to rsg-housing. Format based on Keep a Changelog.
 
+## [3.3.0] - 2026-11-18
+### Added
+- Optional rsg-economy integration (`Config.Economy`): rent and storage upgrade payments are deposited into the treasury of the town nearest to the house. `ReplaceGovernor = true` uses the treasury instead of the governor boss account.
+
 ## [3.2.0] - 2026-11-18
 ### Added
 - **Public API.** Server exports: `GetHouse`, `GetHouses`, `IsHouseRented`, `GetTenant`, `GetPlayerHouses`, `GetHouseAccess`, `HasHouseAccess`, `GetHouseAt`, `GetHouseByDoor`, `GetDoorState`, `SetHouseDoors`, `GetHouseGuests`, `AddGuest`, `RemoveGuest`, `SetHouseRent`, `EvictTenant`, `OpenHouseStorage`, `GetHouseProps`.

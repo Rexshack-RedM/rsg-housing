@@ -999,3 +999,10 @@ Config.HouseDoors = {
     },
     ---------------------------------------------------------------------------
 }
+
+-- rsg-economy integration (optional). Needs the rsg-economy resource; does nothing when it is not started.
+-- Rent and storage upgrade payments are deposited into the treasury of the town nearest to the house.
+Config.Economy = {
+    Enabled          = true,
+    ReplaceGovernor  = false, -- true = the treasury replaces the governor boss account payout (Config.EnableGovernor); false = both
+}
