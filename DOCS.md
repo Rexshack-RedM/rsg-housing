@@ -340,3 +340,194 @@ Per-house upgrades such as a bath or stable need interior coordinates per MLO. T
 
 
 Support: https://rexshack.tebex.store
+
+<!-- BEGIN AUTO-REFERENCE (generated from the code; re-run the generator instead of editing by hand) -->
+
+## Technical reference
+
+Generated from the source of **rsg-housing 3.3.0**. Names, arguments and defaults below are read straight from the code.
+
+### Dependencies
+
+`rsg-core`, `oxmysql`, `rsg-inventory`, `rsg-target`, `rsg-gizmo`
+
+### Database
+
+Tables: `rsg_housing`, `rsg_housekeys`, `rsg_housing_props`, `rsg_housing_retrieval`.
+
+Tables are created automatically on start while `Config.AutoDatabase = true` (default). Nothing is ever dropped or overwritten.
+For a manual install set `Config.AutoDatabase = false` and import `installation/rsg-housing.sql` once.
+
+```lua
+-- shared/config.lua
+Config.AutoDatabase = true -- false = import the SQL file yourself
+```
+
+### Configuration
+
+| Option | Default | Notes |
+|---|---|---|
+| `Config.Debug` | `false` |  |
+| `Config.AutoDatabase` | `true` | create/update the tables on start; set false to import installation/rsg-housing.sql manually |
+| `Config.MaxHousesPerPlayer` | `1` | how many houses a player can rent at once |
+| `Config.GracePeriodDays` | `3` | days after the due date before the tenant is evicted |
+| `Config.ReminderDays` | `3` | send a reminder telegram this many days before rent is due |
+| `Config.RentCheckCronJob` | `'0 * * * *'` | how often to check for due / overdue rent (every hour on the hour) |
+| `Config.MaxRent` | `1000000` | highest rent an admin can set in /houseadmin |
+| `Config.AdminPermission` | `'admin'` | rsg-core permission needed for /houseadmin |
+| `Config.InteractDistance` | `5.0` | max distance (server checked) from the house menu for renting, paying and storage |
+| `Config.MenuPromptDistance` | `1.5` | how close to the house menu spot the [J] prompt appears |
+| `Config.HouseNameMin` | `3` | shortest custom house name a tenant can set |
+| `Config.HouseNameMax` | `30` | longest custom house name (max 30, the database column size) |
+| `Config.GuestSearchMin` | `2` | characters typed before the guest search runs |
+| `Config.GuestSearchResults` | `6` | max players shown in the guest search |
+| `Config.MaxGuests` | `8` | max guests (keys) a tenant can give out per house |
+| `Config.GuestSearchScope` | `'nearby'` | who the guest search finds: 'nearby' (online players close to the tenant), 'online' (any online player) or 'al |
+| `Config.GuestSearchDistance` | `25.0` | 'nearby' range in metres |
+| `Config.GuestDurations` | `{ 0, 24, 168 }` | key lengths a tenant can choose in hours (0 = until removed) |
+| `Config.AllowKnock` | `true` | visitors without a key knock instead of getting an error; the tenant is told if online |
+| `Config.KnockCooldown` | `20` | seconds between knocks per player |
+| `Config.LoginRentReminder` | `true` | remind tenants about rent that is due soon or overdue when they log in |
+| `Config.GuestDefaultPermissions` | `table` | what a newly added guest can use (the tenant can change each guest from the guest list) |
+| `Config.WardrobeResource` | `'rsg-wardrobe'` |  |
+| `Config.TelegramResource` | `'rsg-telegram'` |  |
+| `Config.MailboxMax` | `50` | telegrams shown in the house mailbox |
+| `Config.AllowPushToTalkWhileOpen` | `true` | While the NUI has focus, game controls are blocked but push-to-talk keeps working. |
+| `Config.PushToTalkControls` | `table` |  |
+| `Config.HomeAutoAwayDistance` | `75.0` | tenant is set to 'away' automatically past this distance from the house (0 = never) |
+| `Config.HomeCheckInterval` | `15` | seconds between automatic 'away' checks (also clears tenants who log off) |
+| `Config.Blips` | `table` | blip look per house state (sprite + colour modifier) |
+| `Config.StorageTiers` | `table` |  |
+| `Config.OwnedHouseBlips` | `false` | when true, only your own rented house shows a blip |
+| `Config.PurgeStorageOnLeave` | `true` | true: storage is deleted when a tenant moves out. false: it is kept for Config.RetrievalDays (see below) |
+| `Config.RetrievalDays` | `3` | days an evicted / departed tenant can collect their belongings with /housebelongings at the house (0 = delete  |
+| `Config.EndTenancyRefundPercent` | `0` | % of the unused rent refunded when a tenant ends the tenancy early (0 = no refund) |
+| `Config.EnableGovernor` | `false` | when true, rent and storage upgrades are paid into the region's governor boss account (rsg-bossmenu). The old  |
+| `Config.GovernorJobs` | `table` | region (rsg_housing.region) -> rsg-bossmenu job that receives the money |
+| `Config.Decorating` | `true` |  |
+| `Config.MaxPropsPerHouse` | `25` |  |
+| `Config.PropPlaceRadius` | `40.0` | furniture must be within this distance of the house menu spot (server checked) |
+| `Config.PropStreamDistance` | `80.0` | furniture spawns for a player this close to the house |
+| `Config.PropRefundPercent` | `50` | % of the price refunded when a tenant removes an item |
+| `Config.DecorProps` | `table` | models checked against femga/rdr3_discoveries objects/object_list.lua |
+| `Config.Houses` | `table` | house config |
+| `Config.HouseDoors` | `table` | door config |
+| `Config.Economy` | `table` | Rent and storage upgrade payments are deposited into the treasury of the town nearest to the house. |
+| `Config.Enabled` | `true` |  |
+| `Config.ReplaceGovernor` | `false` |  |
+
+### Exports
+
+**Server**
+
+| Export | Arguments | File |
+|---|---|---|
+| `GetHouse` | `houseid` | `server/server.lua` |
+| `GetHouses` | `` | `server/server.lua` |
+| `IsHouseRented` | `houseid` | `server/server.lua` |
+| `GetTenant` | `houseid` | `server/server.lua` |
+| `GetPlayerHouses` | `citizenid` | `server/server.lua` |
+| `GetHouseAccess` | `citizenid, houseid` | `server/server.lua` |
+| `HasHouseAccess` | `citizenid, houseid, perm` | `server/server.lua` |
+| `GetHouseAt` | `coords, radius` | `server/server.lua` |
+| `GetHouseByDoor` | `doorid` | `server/server.lua` |
+| `GetDoorState` | `doorid` | `server/server.lua` |
+| `SetHouseDoors` | `houseid, locked` | `server/server.lua` |
+| `GetHouseGuests` | `houseid` | `server/server.lua` |
+| `AddGuest` | `houseid, citizenid, opts` | `server/server.lua` |
+| `RemoveGuest` | `houseid, citizenid` | `server/server.lua` |
+| `SetHouseRent` | `houseid, rent` | `server/server.lua` |
+| `EvictTenant` | `houseid, opts` | `server/server.lua` |
+| `OpenHouseStorage` | `src, houseid` | `server/server.lua` |
+| `GetHouseProps` | `houseid` | `server/server.lua` |
+
+**Client**
+
+| Export | Arguments | File |
+|---|---|---|
+| `IsHouseRented` | `houseid` | `client/client.lua` |
+| `IsMyHouse` | `houseid` | `client/client.lua` |
+| `GetMyHouses` | `` | `client/client.lua` |
+| `GetHouseName` | `houseid` | `client/client.lua` |
+| `GetNearestHouse` | `coords, maxDist` | `client/client.lua` |
+| `OpenHouseMenu` | `houseid` | `client/client.lua` |
+| `IsHouseMenuOpen` | `` | `client/client.lua` |
+
+```lua
+-- example
+local result = exports['rsg-housing']:GetHouse(houseid)
+```
+
+### Callbacks
+
+| Callback | Side | Arguments | File |
+|---|---|---|---|
+| `rsg-housing:server:getState` | server | `source` | `server/server.lua` |
+| `rsg-housing:server:getHouseStatus` | server | `source, houseid` | `server/server.lua` |
+| `rsg-housing:server:rentHouse` | server | `src, houseid` | `server/server.lua` |
+| `rsg-housing:server:payRent` | server | `src, houseid` | `server/server.lua` |
+| `rsg-housing:server:setHome` | server | `src, houseid, on` | `server/server.lua` |
+| `rsg-housing:server:upgradeStorage` | server | `src, houseid, level` | `server/server.lua` |
+| `rsg-housing:server:renameHouse` | server | `src, houseid, value` | `server/server.lua` |
+| `rsg-housing:server:endTenancy` | server | `src, houseid` | `server/server.lua` |
+| `rsg-housing:server:addGuest` | server | `src, houseid, targetCid, hours` | `server/server.lua` |
+| `rsg-housing:server:setGuestPermission` | server | `src, houseid, targetCid, perm, allowed` | `server/server.lua` |
+| `rsg-housing:server:searchPlayers` | server | `src, houseid, query` | `server/server.lua` |
+| `rsg-housing:server:removeGuest` | server | `src, houseid, targetCid` | `server/server.lua` |
+| `rsg-housing:server:outfits` | server | `src, houseid, action, id` | `server/server.lua` |
+| `rsg-housing:server:mailbox` | server | `src, houseid, action, id` | `server/server.lua` |
+| `rsg-housing:server:toggleDoor` | server | `source, doorid` | `server/server.lua` |
+| `rsg-housing:server:getProps` | server | `src, houseid` | `server/server.lua` |
+| `rsg-housing:server:prePlaceProp` | server | `src, houseid, key` | `server/server.lua` |
+| `rsg-housing:server:placeProp` | server | `src, houseid, key, coords, rot` | `server/server.lua` |
+| `rsg-housing:server:moveProp` | server | `src, houseid, id, coords, rot` | `server/server.lua` |
+| `rsg-housing:server:removeProp` | server | `src, houseid, id` | `server/server.lua` |
+| `rsg-housing:server:admin` | server | `src, action, houseid, data` | `server/server.lua` |
+
+```lua
+-- client side
+RSGCore.Functions.TriggerCallback('rsg-housing:server:getState', function(result)
+    -- use result
+end)
+```
+
+### Events
+
+Server events can be fired by any client, so every handler re-validates the player, the arguments and any permission, distance or cooldown on the server. Never add a reward to a handler without those checks.
+
+| Event | Side | Arguments | File |
+|---|---|---|---|
+| `RSGCore:Client:OnPlayerLoaded` | client | `` | `client/client.lua` |
+| `rsg-housing:client:SyncOwnedHouses` | client | `owned, mine` | `client/client.lua` |
+| `rsg-housing:client:SyncDoors` | client | `doors` | `client/client.lua` |
+| `rsg-housing:client:SetDoorState` | client | `doorid, state` | `client/client.lua` |
+| `rsg-housing:client:openAdmin` | client | `` | `client/client.lua` |
+| `RSGCore:Client:OnPlayerUnload` | client | `` | `client/client.lua` |
+| `rsg-housing:client:propAdded` | client | `houseid, prop` | `client/props.lua` |
+| `rsg-housing:client:propMoved` | client | `houseid, id, coords, rot` | `client/props.lua` |
+| `rsg-housing:client:propRemoved` | client | `houseid, id` | `client/props.lua` |
+| `rsg-housing:client:propsCleared` | client | `houseid` | `client/props.lua` |
+| `rsg-housing:client:placeProp` | client | `houseid, key` | `client/props.lua` |
+| `rsg-housing:server:openStorage` | server | `houseid` | `server/server.lua` |
+| `rsg-housing:server:loginCheck` | server | `` | `server/server.lua` |
+
+```lua
+-- from a client script
+TriggerServerEvent('rsg-housing:server:openStorage', houseid)
+-- from a server script
+TriggerClientEvent('RSGCore:Client:OnPlayerLoaded', source)
+```
+
+### Commands
+
+| Command | Notes | File |
+|---|---|---|
+| `/myhouse` |  | `client/client.lua` |
+| `/housebelongings` | locale('retrieval_help') | `server/server.lua` |
+| `/houseadmin` | locale('admin_command_help') | `server/server.lua` |
+
+### Locales
+
+Language files in `locales/`: `de`, `el`, `en`, `es`, `fr`, `ja`, `nl`, `pl`, `pt-br`, `ro`. Set the language with `setr rsg:locale "en"`.
+
+<!-- END AUTO-REFERENCE -->
